@@ -1,0 +1,36 @@
+cmake_minimum_required(VERSION 3.10)
+project(StoryLang LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# --- SQLite: bundled amalgamation if present, otherwise the system library ---
+set(SQLITE_AMALGAMATION ${CMAKE_SOURCE_DIR}/third_party/sqlite3/sqlite3.c)
+if(EXISTS ${SQLITE_AMALGAMATION})
+    add_library(sqlite3_lib STATIC ${SQLITE_AMALGAMATION})
+    target_include_directories(sqlite3_lib PUBLIC ${CMAKE_SOURCE_DIR}/third_party/sqlite3)
+    target_compile_definitions(sqlite3_lib PRIVATE SQLITE_THREADSAFE=0)
+    set(SQLITE_TARGET sqlite3_lib)
+    message(STATUS "SQLite: using bundled amalgamation")
+else()
+    find_package(SQLite3 REQUIRED)
+    set(SQLITE_TARGET SQLite::SQLite3)
+    message(STATUS "SQLite: using system library")
+endif()
+
+file(GLOB_RECURSE LIB_SOURCES ${CMAKE_SOURCE_DIR}/src/*/*.cpp)
+add_library(storylang_core STATIC ${LIB_SOURCES})
+target_include_directories(storylang_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(storylang_core PUBLIC ${SQLITE_TARGET})
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(storylang_core PRIVATE -Wall -Wextra)
+endif()
+
+add_executable(storylang src/main.cpp)
+target_link_libraries(storylang PRIVATE storylang_core)
+
+enable_testing()
+add_executable(storylang_tests tests/test_main.cpp)
+target_link_libraries(storylang_tests PRIVATE storylang_core)
+add_test(NAME storylang_tests COMMAND storylang_tests)
